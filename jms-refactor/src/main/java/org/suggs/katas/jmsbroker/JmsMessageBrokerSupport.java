@@ -14,20 +14,29 @@ import javax.jms.Queue;
 import javax.jms.Session;
 import javax.jms.TextMessage;
 
-import org.apache.activemq.ActiveMQConnectionFactory;
 import org.slf4j.Logger;
 
 public class JmsMessageBrokerSupport {
+	public static final String DEFAULT_BROKER_URL_PREFIX = "tcp://localhost:";
+
 	private static final Logger LOG = getLogger(JmsMessageBrokerSupport.class);
 	private static final int ONE_SECOND = 1000;
 	private static final int DEFAULT_RECEIVE_TIMEOUT = 10 * ONE_SECOND;
-	public static final String DEFAULT_BROKER_URL_PREFIX = "tcp://localhost:";
 
 	private String brokerUrl;
 	private JmsBrokerService brokerService;
 
+	private JmsConnectionFactory jmsConnectionFactory;
+	private JmsBrokerServiceFactory jmsBrokerServiceFactory;
+
 	private JmsMessageBrokerSupport(String aBrokerUrl) {
+		this(aBrokerUrl, new JmsConnectionFactory(), new JmsBrokerServiceFactory());
+	}
+
+	protected JmsMessageBrokerSupport(String aBrokerUrl, JmsConnectionFactory aJmsConnectionFactory, JmsBrokerServiceFactory aJmsBrokerServiceFactory) {
 		brokerUrl = aBrokerUrl;
+		jmsConnectionFactory = aJmsConnectionFactory;
+		jmsBrokerServiceFactory = aJmsBrokerServiceFactory;
 	}
 
 	public static JmsMessageBrokerSupport createARunningEmbeddedBrokerOnAvailablePort() throws Exception {
@@ -43,7 +52,7 @@ public class JmsMessageBrokerSupport {
 	}
 
 	private void createEmbeddedBroker() throws Exception {
-		brokerService = new ActiveMqBrokerService(brokerUrl);
+		brokerService = jmsBrokerServiceFactory.createAt(brokerUrl);
 	}
 
 	public static JmsMessageBrokerSupport bindToBrokerAtUrl(String aBrokerUrl) throws Exception {
@@ -99,7 +108,7 @@ public class JmsMessageBrokerSupport {
 		Connection connection = null;
 		String returnValue = "";
 		try {
-			ConnectionFactory connectionFactory = new ActiveMQConnectionFactory(brokerUrl);
+			ConnectionFactory connectionFactory = jmsConnectionFactory.createAt(aBrokerUrl);
 			connection = connectionFactory.createConnection();
 			connection.start();
 			returnValue = executeCallbackAgainstConnection(connection, aDestinationName, aCallback);
