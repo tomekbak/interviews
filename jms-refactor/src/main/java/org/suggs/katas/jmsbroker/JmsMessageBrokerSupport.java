@@ -16,11 +16,12 @@ public class JmsMessageBrokerSupport {
 	private static final int ONE_SECOND = 1000;
 	private static final int DEFAULT_RECEIVE_TIMEOUT = 10 * ONE_SECOND;
 
-	private String brokerUrl;
+	private JmsBrokerServiceFactory jmsBrokerServiceFactory;
+	private JmsConnectionSupport jmsConnectionSupport;
+
 	private JmsBrokerService brokerService;
 
-	private JmsConnectionSupport jmsConnectionSupport;
-	private JmsBrokerServiceFactory jmsBrokerServiceFactory;
+	private String brokerUrl;
 
 	private JmsMessageBrokerSupport(String aBrokerUrl) {
 		this(aBrokerUrl, new JmsConnectionSupport(new JmsConnectionFactory()), new JmsBrokerServiceFactory());
@@ -38,33 +39,30 @@ public class JmsMessageBrokerSupport {
 
 	public static JmsMessageBrokerSupport createARunningEmbeddedBrokerAt(String aBrokerUrl) throws Exception {
 		LOG.debug("Creating a new broker at {}", aBrokerUrl);
-		JmsMessageBrokerSupport broker = bindToBrokerAtUrl(aBrokerUrl);
-		broker.createEmbeddedBroker();
-		broker.startEmbeddedBroker();
+		JmsMessageBrokerSupport broker = bindToRunningBrokerAt(aBrokerUrl);
+		broker.createAndStartEmbeddedBroker();
 		return broker;
 	}
 
-	private void createEmbeddedBroker() throws Exception {
+	private void createAndStartEmbeddedBroker() throws Exception {
 		brokerService = jmsBrokerServiceFactory.createAt(brokerUrl);
-	}
-
-	public static JmsMessageBrokerSupport bindToBrokerAtUrl(String aBrokerUrl) throws Exception {
-		return new JmsMessageBrokerSupport(aBrokerUrl);
-	}
-
-	private void startEmbeddedBroker() throws Exception {
 		brokerService.start();
 	}
 
+	@Deprecated
+	public static JmsMessageBrokerSupport bindToBrokerAtUrl(String aBrokerUrl) throws Exception {
+		return bindToRunningBrokerAt(aBrokerUrl);
+	}
+
+	public static JmsMessageBrokerSupport bindToRunningBrokerAt(String aBrokerUrl) throws Exception {
+		return new JmsMessageBrokerSupport(aBrokerUrl);
+	}
+	
 	public void stopTheRunningBroker() throws Exception {
 		if (brokerService == null) {
 			throw new IllegalStateException("Cannot stop the broker from this API: " + "perhaps it was started independently from this utility");
 		}
 		brokerService.stop();
-	}
-
-	public final JmsMessageBrokerSupport andThen() {
-		return this;
 	}
 
 	public final String getBrokerUrl() {
@@ -102,6 +100,10 @@ public class JmsMessageBrokerSupport {
 
 	public boolean isEmptyQueueAt(String aDestinationName) throws Exception {
 		return brokerService.getEnqueuedMessageCountAt(aDestinationName) == 0;
+	}
+
+	public final JmsMessageBrokerSupport andThen() {
+		return this;
 	}
 
 	@Deprecated
