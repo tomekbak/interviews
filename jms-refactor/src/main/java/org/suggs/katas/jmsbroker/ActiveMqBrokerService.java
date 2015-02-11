@@ -2,6 +2,7 @@ package org.suggs.katas.jmsbroker;
 
 import org.apache.activemq.broker.Broker;
 import org.apache.activemq.broker.BrokerService;
+import org.apache.activemq.broker.region.Destination;
 import org.apache.activemq.broker.region.DestinationStatistics;
 
 public class ActiveMqBrokerService implements JmsBrokerService{
@@ -34,7 +35,7 @@ public class ActiveMqBrokerService implements JmsBrokerService{
 
     private DestinationStatistics getDestinationStatisticsFor(String aDestinationName) throws Exception {
         Broker regionBroker = brokerService.getRegionBroker();
-        for (org.apache.activemq.broker.region.Destination destination : regionBroker.getDestinationMap().values()) {
+        for (Destination destination : regionBroker.getDestinationMap().values()) {
             if (destination.getName().equals(aDestinationName)) {
                 return destination.getDestinationStatistics();
             }

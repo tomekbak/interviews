@@ -26,16 +26,16 @@ public class JmsMessageBrokerSupport {
 	private String brokerUrl;
 	private JmsBrokerService brokerService;
 
-	private JmsConnectionFactory jmsConnectionFactory;
+	private JmsConnectionSupport jmsConnectionSupport;
 	private JmsBrokerServiceFactory jmsBrokerServiceFactory;
 
 	private JmsMessageBrokerSupport(String aBrokerUrl) {
-		this(aBrokerUrl, new JmsConnectionFactory(), new JmsBrokerServiceFactory());
+		this(aBrokerUrl, new JmsConnectionSupport(new JmsConnectionFactory()), new JmsBrokerServiceFactory());
 	}
 
-	protected JmsMessageBrokerSupport(String aBrokerUrl, JmsConnectionFactory aJmsConnectionFactory, JmsBrokerServiceFactory aJmsBrokerServiceFactory) {
+	protected JmsMessageBrokerSupport(String aBrokerUrl, JmsConnectionSupport aJmsConnectionSupport, JmsBrokerServiceFactory aJmsBrokerServiceFactory) {
 		brokerUrl = aBrokerUrl;
-		jmsConnectionFactory = aJmsConnectionFactory;
+		jmsConnectionSupport = aJmsConnectionSupport;
 		jmsBrokerServiceFactory = aJmsBrokerServiceFactory;
 	}
 
@@ -79,7 +79,7 @@ public class JmsMessageBrokerSupport {
 	}
 
 	public JmsMessageBrokerSupport sendATextMessageToDestinationAt(String aDestinationName, final String aMessageToSend) {
-		executeCallbackAgainstRemoteBroker(brokerUrl, aDestinationName, (aSession, aDestination) -> {
+		jmsConnectionSupport.executeCallbackAgainstRemoteBroker(brokerUrl, aDestinationName, (aSession, aDestination) -> {
 			MessageProducer producer = aSession.createProducer(aDestination);
 			producer.send(aSession.createTextMessage(aMessageToSend));
 			producer.close();
@@ -93,7 +93,7 @@ public class JmsMessageBrokerSupport {
 	}
 
 	public String retrieveASingleMessageFromTheDestination(String aDestinationName, final int aTimeout) {
-		return executeCallbackAgainstRemoteBroker(brokerUrl, aDestinationName, (aSession, aDestination) -> {
+		return jmsConnectionSupport.executeCallbackAgainstRemoteBroker(brokerUrl, aDestinationName, (aSession, aDestination) -> {
 			MessageConsumer consumer = aSession.createConsumer(aDestination);
 			Message message = consumer.receive(aTimeout);
 			if (message == null) {
@@ -102,55 +102,6 @@ public class JmsMessageBrokerSupport {
 			consumer.close();
 			return ((TextMessage) message).getText();
 		});
-	}
-
-	private String executeCallbackAgainstRemoteBroker(String aBrokerUrl, String aDestinationName, JmsCallback aCallback) {
-		Connection connection = null;
-		String returnValue = "";
-		try {
-			ConnectionFactory connectionFactory = jmsConnectionFactory.createAt(aBrokerUrl);
-			connection = connectionFactory.createConnection();
-			connection.start();
-			returnValue = executeCallbackAgainstConnection(connection, aDestinationName, aCallback);
-		} catch (JMSException jmse) {
-			LOG.error("failed to create connection to {}", aBrokerUrl);
-			throw new IllegalStateException(jmse);
-		} finally {
-			if (connection != null) {
-				try {
-					connection.close();
-				} catch (JMSException jmse) {
-					LOG.warn("Failed to close connection to broker at []", aBrokerUrl);
-					throw new IllegalStateException(jmse);
-				}
-			}
-		}
-		return returnValue;
-	}
-
-	interface JmsCallback {
-		String performJmsFunction(Session aSession, Destination aDestination) throws JMSException;
-	}
-
-	private String executeCallbackAgainstConnection(Connection aConnection, String aDestinationName, JmsCallback aCallback) {
-		Session session = null;
-		try {
-			session = aConnection.createSession(false, Session.AUTO_ACKNOWLEDGE);
-			Queue queue = session.createQueue(aDestinationName);
-			return aCallback.performJmsFunction(session, queue);
-		} catch (JMSException jmse) {
-			LOG.error("Failed to create session on connection {}", aConnection);
-			throw new IllegalStateException(jmse);
-		} finally {
-			if (session != null) {
-				try {
-					session.close();
-				} catch (JMSException jmse) {
-					LOG.warn("Failed to close session {}", session);
-					throw new IllegalStateException(jmse);
-				}
-			}
-		}
 	}
 
 	public long getEnqueuedMessageCountAt(String aDestinationName) throws Exception {
@@ -166,4 +117,9 @@ public class JmsMessageBrokerSupport {
 			super(reason);
 		}
 	}
+
+	interface JmsCallback {
+		String performJmsFunction(Session aSession, Destination aDestination) throws JMSException;
+	}
+
 }
