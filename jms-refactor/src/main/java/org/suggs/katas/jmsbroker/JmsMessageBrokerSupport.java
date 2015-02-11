@@ -3,16 +3,9 @@ package org.suggs.katas.jmsbroker;
 import static org.slf4j.LoggerFactory.getLogger;
 import static org.suggs.katas.jmsbroker.SocketFinder.findNextAvailablePortBetween;
 
-import javax.jms.Connection;
-import javax.jms.ConnectionFactory;
 import javax.jms.Destination;
 import javax.jms.JMSException;
-import javax.jms.Message;
-import javax.jms.MessageConsumer;
-import javax.jms.MessageProducer;
-import javax.jms.Queue;
 import javax.jms.Session;
-import javax.jms.TextMessage;
 
 import org.slf4j.Logger;
 
@@ -80,9 +73,8 @@ public class JmsMessageBrokerSupport {
 
 	public JmsMessageBrokerSupport sendATextMessageToDestinationAt(String aDestinationName, final String aMessageToSend) {
 		jmsConnectionSupport.executeCallbackAgainstRemoteBroker(brokerUrl, aDestinationName, (aSession, aDestination) -> {
-			MessageProducer producer = aSession.createProducer(aDestination);
-			producer.send(aSession.createTextMessage(aMessageToSend));
-			producer.close();
+			JmsMessageSupport jmsMessageSupport = new JmsMessageSupport(aSession, aDestination);
+			jmsMessageSupport.send(aMessageToSend);
 			return "";
 		});
 		return this;
@@ -94,13 +86,13 @@ public class JmsMessageBrokerSupport {
 
 	public String retrieveASingleMessageFromTheDestination(String aDestinationName, final int aTimeout) {
 		return jmsConnectionSupport.executeCallbackAgainstRemoteBroker(brokerUrl, aDestinationName, (aSession, aDestination) -> {
-			MessageConsumer consumer = aSession.createConsumer(aDestination);
-			Message message = consumer.receive(aTimeout);
-			if (message == null) {
-				throw new NoMessageReceivedException(String.format("No messages received from the broker within the %d timeout", aTimeout));
+			JmsMessageSupport jmsMessageSupport = new JmsMessageSupport(aSession, aDestination);
+			try {
+				return jmsMessageSupport.receive(aTimeout);
+			} catch (MesssageReceiveTimeoutException e) {
+				// for backward compatibility throwing exceptions of old type
+				throw new NoMessageReceivedException(e.getMessage());
 			}
-			consumer.close();
-			return ((TextMessage) message).getText();
 		});
 	}
 
@@ -112,6 +104,7 @@ public class JmsMessageBrokerSupport {
 		return brokerService.getEnqueuedMessageCountAt(aDestinationName) == 0;
 	}
 
+	@Deprecated
 	public class NoMessageReceivedException extends RuntimeException {
 		public NoMessageReceivedException(String reason) {
 			super(reason);

@@ -24,9 +24,7 @@ public class JmsConnectionSupport {
 		Connection connection = null;
 		String returnValue = "";
 		try {
-			ConnectionFactory connectionFactory = jmsConnectionFactory.createAt(aBrokerUrl);
-			connection = connectionFactory.createConnection();
-			connection.start();
+			connection = createAndStartConnection(aBrokerUrl);
 			returnValue = executeCallbackAgainstConnection(connection, aDestinationName, aCallback);
 		} catch (JMSException jmse) {
 			LOG.error("failed to create connection to {}", aBrokerUrl);
@@ -44,11 +42,18 @@ public class JmsConnectionSupport {
 		return returnValue;
 	}
 
+	private Connection createAndStartConnection(String aBrokerUrl) throws JMSException {
+		ConnectionFactory connectionFactory = jmsConnectionFactory.createAt(aBrokerUrl);
+		Connection connection = connectionFactory.createConnection();
+		connection.start();
+		return connection;
+	}
+
 	private String executeCallbackAgainstConnection(Connection aConnection, String aDestinationName, JmsCallback aCallback) {
 		Session session = null;
 		try {
-			session = aConnection.createSession(false, Session.AUTO_ACKNOWLEDGE);
-			Queue queue = session.createQueue(aDestinationName);
+			session = createSession(aConnection);
+			Queue queue = createqueue(aDestinationName, session);
 			return aCallback.performJmsFunction(session, queue);
 		} catch (JMSException jmse) {
 			LOG.error("Failed to create session on connection {}", aConnection);
@@ -63,6 +68,14 @@ public class JmsConnectionSupport {
 				}
 			}
 		}
+	}
+
+	private Queue createqueue(String aDestinationName, Session session) throws JMSException {
+		return session.createQueue(aDestinationName);
+	}
+
+	private Session createSession(Connection aConnection) throws JMSException {
+		return aConnection.createSession(false, Session.AUTO_ACKNOWLEDGE);
 	}
 
 }
